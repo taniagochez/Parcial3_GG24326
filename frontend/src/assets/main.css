@@ -1,0 +1,37 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #F4F7FD;
+  color-scheme: light;
+}
+
+#app {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-weight: normal;
+}
+
+:root, .v-application {
+  font-family: 'Museo Sans', 'Nunito Sans', sans-serif !important;
+  font-size: 16px;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* Estándares de letra */
+.t1 { font-size: 96px; font-weight: bold; }
+.t2 { font-size: 60px; }
+.t3 { font-size: 48px; }
+.t4 { font-size: 34px; }
+.t5 { font-size: 24px; }
+.t6 { font-size: 20px; }
+.sub1 { font-size: 16px; }
+.sub2 { font-size: 14px; }
+.v-btn { font-size: 14px !important; }
+
+.page-card { background: #fff; border-radius: 16px; }
