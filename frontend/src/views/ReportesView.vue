@@ -9,9 +9,9 @@ import api, { errorMsg } from '@/services/api'
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const meses = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Todos los meses', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-].map((title, i) => ({ title, value: i + 1 }))
+].map((title, i) => ({ title, value: i })) // 0 = todos los meses
 
 const hoy = new Date()
 const mes = ref<number>(hoy.getMonth() + 1)
@@ -50,6 +50,8 @@ const chartData = computed(() => ({
       data: [aprobados.value, reprobados.value],
       backgroundColor: ['#57CC99', '#EF5350'],
       borderRadius: 6,
+      maxBarThickness: 60, // barras delgadas
+      barPercentage: 0.5,
     },
   ],
 }))
@@ -61,7 +63,9 @@ const chartOptions = computed(() => ({
     legend: { display: false },
     title: {
       display: true,
-      text: `Alumnos aprobados y reprobados - ${nombreMes.value} ${anio.value}`,
+      text: mes.value === 0
+        ? `Alumnos aprobados y reprobados - Todo ${anio.value}`
+        : `Alumnos aprobados y reprobados - ${nombreMes.value} ${anio.value}`,
       font: { size: 16 },
     },
   },
@@ -97,7 +101,7 @@ onMounted(cargar)
     <div class="grafico mt-4">
       <Bar v-if="total > 0" :data="chartData" :options="chartOptions" />
       <p v-else-if="!loading" class="text-center text-medium-emphasis py-12">
-        No hay notas registradas en {{ nombreMes }} {{ anio }}
+        No hay notas registradas en {{ mes === 0 ? `el año ${anio}` : `${nombreMes} ${anio}` }}
       </p>
     </div>
   </v-card>

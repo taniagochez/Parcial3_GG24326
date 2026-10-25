@@ -50,18 +50,21 @@ async function salir(): Promise<void> {
     </template>
   </v-navigation-drawer>
 
-  <v-app-bar flat color="surface" class="mx-4 mt-2" style="border-radius: 12px; width: auto">
-    <v-app-bar-title class="t5 mr-8" style="flex: none">{{ route.meta.title }}</v-app-bar-title>
-<span class="sub2 mr-4 d-none d-sm-inline">{{ auth.user?.name }}</span>
-    <v-menu>
-      <template #activator="{ props }">
-        <v-btn v-bind="props" icon="mdi-account-circle" variant="text" color="secondary" />
-      </template>
-      <v-list>
-        <v-list-item prepend-icon="mdi-logout" title="Cerrar sesión" @click="salir" />
-      </v-list>
-    </v-menu>
-  </v-app-bar>
+ <v-app-bar
+  flat color="surface" class="mx-4 mt-2"
+  style="border-radius: 12px; width: fit-content !important; left: auto !important; right: 0"
+>
+  <v-app-bar-title class="t5 mr-8" style="flex: none">{{ route.meta.title }}</v-app-bar-title>
+  <span class="sub2 mr-4 d-none d-sm-inline">{{ auth.user?.name }}</span>
+  <v-menu>
+    <template #activator="{ props }">
+      <v-btn v-bind="props" icon="mdi-account-circle" variant="text" color="secondary" />
+    </template>
+    <v-list>
+      <v-list-item prepend-icon="mdi-logout" title="Cerrar sesión" @click="salir" />
+    </v-list>
+  </v-menu>
+</v-app-bar>
 
   <v-main class="bg-background">
     <v-container fluid class="pa-4">

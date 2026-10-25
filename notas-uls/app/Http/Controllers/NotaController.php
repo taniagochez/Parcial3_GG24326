@@ -154,7 +154,7 @@ class NotaController extends Controller
     public function grafico(Request $request)
     {
         $data = $request->validate([
-            'mes'      => 'required|integer|between:1,12',
+            'mes'      => 'required|integer|between:0,12', // 0 = todos los meses del año
             'anio'     => 'nullable|integer|min:2000|max:2100',
             'grupo_id' => 'nullable|exists:grupos,id',
         ]);
@@ -163,7 +163,7 @@ class NotaController extends Controller
 
         $q = Nota::query()
             ->whereYear('fecha', $data['anio'] ?? now()->year)
-            ->whereMonth('fecha', $data['mes'])
+            ->when($data['mes'] > 0, fn ($q) => $q->whereMonth('fecha', $data['mes']))
             ->when($user->role === 'docente', fn ($q) =>
                 $q->whereHas('grupo', fn ($g) => $g->where('docente_id', optional($user->docente)->id)))
             ->when($data['grupo_id'] ?? null, fn ($q, $v) => $q->where('grupo_id', $v));

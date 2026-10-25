@@ -10,9 +10,13 @@ use App\Http\Controllers\NotaController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/password/forgot', [AuthController::class, 'olvidePassword'])->middleware('throttle:5,1');
+Route::post('/password/reset', [AuthController::class, 'restablecerPassword'])->middleware('throttle:10,1');
 
-Route::middleware(['auth:sanctum', 'abilities:pre-2fa'])
-    ->post('/2fa/verify', [AuthController::class, 'verify2fa']);
+Route::middleware(['auth:sanctum', 'abilities:pre-2fa'])->group(function () {
+    Route::post('/2fa/verify', [AuthController::class, 'verify2fa']);
+    Route::post('/2fa/resend', [AuthController::class, 'reenviarCodigo']);
+});
 
 Route::middleware(['auth:sanctum', 'abilities:access'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
@@ -24,6 +28,7 @@ Route::middleware(['auth:sanctum', 'abilities:access'])->group(function () {
         Route::apiResource('docentes', DocenteController::class);
         Route::patch('docentes/{docente}/estado', [DocenteController::class, 'toggleEstado']);
         Route::post('docentes/{docente}/reenviar', [DocenteController::class, 'reenviarCredenciales']);
+        Route::post('docentes/{docente}/quitar-grupos', [GrupoController::class, 'quitarDocente']);
 
         Route::apiResource('ciclos', CicloController::class);
         Route::apiResource('materias', MateriaController::class);

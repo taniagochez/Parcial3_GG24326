@@ -20,8 +20,8 @@ export interface User {
 
 export interface LoginResponse {
   token: string
-  requires_qr: boolean
-  qr?: string
+  requires_code?: boolean
+  correo?: string
   user?: User
   must_change_password?: boolean
   two_factor_omitido?: boolean

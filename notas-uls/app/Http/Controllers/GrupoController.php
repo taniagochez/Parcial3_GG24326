@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Docente;
 use App\Models\Grupo;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,7 @@ class GrupoController extends Controller
             'nombre'     => 'required|string|max:100',
             'ciclo_id'   => 'required|exists:ciclos,id',
             'materia_id' => 'required|exists:materias,id',
-            'docente_id' => 'required|exists:docentes,id',
+            'docente_id' => 'nullable|exists:docentes,id',
         ];
     }
 
@@ -59,5 +60,21 @@ class GrupoController extends Controller
         ]);
         $grupo->estudiantes()->sync($data['estudiantes']);
         return $grupo->load('estudiantes');
+    }
+
+    // Quita al docente un grupo (grupo_id) o todos los grupos de un ciclo (solo ciclo_id)
+    public function quitarDocente(Request $request, Docente $docente)
+    {
+        $data = $request->validate([
+            'ciclo_id' => 'required|exists:ciclos,id',
+            'grupo_id' => 'nullable|exists:grupos,id',
+        ]);
+
+        $quitados = Grupo::where('docente_id', $docente->id)
+            ->where('ciclo_id', $data['ciclo_id'])
+            ->when($data['grupo_id'] ?? null, fn ($q, $g) => $q->where('id', $g))
+            ->update(['docente_id' => null]);
+
+        return response()->json(['quitados' => $quitados]);
     }
 }

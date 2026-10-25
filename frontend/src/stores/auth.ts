@@ -7,11 +7,18 @@ interface AuthState {
   user: User | null
   mustChangePassword: boolean
   tempToken: string | null
-  qr: string | null
+  correo: string | null
 }
 
 export interface ChangePasswordPayload {
   current_password: string
+  password: string
+  password_confirmation: string
+}
+
+export interface ResetPasswordPayload {
+  email: string
+  code: string
   password: string
   password_confirmation: string
 }
@@ -22,7 +29,7 @@ export const useAuthStore = defineStore('auth', {
     user: JSON.parse(localStorage.getItem('user') || 'null') as User | null,
     mustChangePassword: localStorage.getItem('mcp') === '1',
     tempToken: null,
-    qr: null,
+    correo: null,
   }),
 
   getters: {
@@ -34,7 +41,7 @@ export const useAuthStore = defineStore('auth', {
     // Guarda la sesión final (token de acceso + usuario)
     guardarSesion(token: string, user: User, mustChange: boolean): void {
       this.tempToken = null
-      this.qr = null
+      this.correo = null
       this.token = token
       this.user = user
       this.mustChangePassword = mustChange
@@ -52,15 +59,30 @@ export const useAuthStore = defineStore('auth', {
         return true
       }
 
-      // Primer ingreso: token temporal + QR
+      // Primer ingreso: token temporal; el código se envió al correo
       this.tempToken = data.token
-      this.qr = data.requires_qr ? (data.qr ?? null) : null
+      this.correo = data.correo ?? null
       return false
     },
 
     async verify(code: string): Promise<void> {
       const { data } = await api.post<VerifyResponse>('/2fa/verify', { code })
       this.guardarSesion(data.token, data.user, data.must_change_password)
+    },
+
+    // Pide un código nuevo al correo (el servidor limita a 1 por minuto)
+    async resendCode(): Promise<void> {
+      const { data } = await api.post<{ correo: string }>('/2fa/resend')
+      this.correo = data.correo
+    },
+
+    // Recuperar contraseña: 1) pedir código al correo, 2) validar código y guardar la nueva
+    async solicitarRecuperacion(email: string): Promise<void> {
+      await api.post('/password/forgot', { email })
+    },
+
+    async restablecerPassword(payload: ResetPasswordPayload): Promise<void> {
+      await api.post('/password/reset', payload)
     },
 
     async changePassword(payload: ChangePasswordPayload): Promise<void> {
@@ -82,7 +104,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.user = null
       this.tempToken = null
-      this.qr = null
+      this.correo = null
       this.mustChangePassword = false
       localStorage.removeItem('token')
       localStorage.removeItem('user')

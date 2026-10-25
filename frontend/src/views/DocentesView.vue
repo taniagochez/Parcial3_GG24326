@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import api, { errorMsg } from '@/services/api'
 import type { DocenteRow, Paginated } from '@/types'
 
@@ -180,6 +180,137 @@ function reenviar(d: DocenteRow): void {
   )
 }
 
+// ---- asignar grupo a docente ----
+interface GrupoAsignable {
+  id: number
+  nombre: string
+  ciclo_id: number
+  materia_id: number
+  docente_id: number | null
+  ciclo?: { id: number; nombre: string } | null
+  materia?: { id: number; nombre: string } | null
+  docente?: { id: number; nombres: string; apellidos: string } | null
+}
+
+const dialogAsignar = ref(false)
+const asignarFormRef = ref<FormRef | null>(null)
+const asignando = ref(false)
+const errorAsignar = ref('')
+const todosDocentes = ref<DocenteRow[]>([])
+const todosGrupos = ref<GrupoAsignable[]>([])
+const asignar = reactive({
+  docenteId: null as number | null,
+  cicloId: null as number | null,
+  grupoId: null as number | null,
+})
+
+const modoAsignar = ref<'asignar' | 'quitar'>('asignar')
+
+const docentesAsignar = computed(() =>
+  modoAsignar.value === 'asignar'
+    ? todosDocentes.value.filter((d) => d.user.estado === 'habilitado')
+    : todosDocentes.value,
+)
+
+// Grupos disponibles según el modo: al quitar, solo los que ya tiene el docente
+const gruposBase = computed(() =>
+  modoAsignar.value === 'quitar'
+    ? todosGrupos.value.filter((g) => g.docente_id === asignar.docenteId)
+    : todosGrupos.value,
+)
+
+const ciclosAsignar = computed(() => {
+  const mapa = new Map<number, string>()
+  for (const g of gruposBase.value) if (g.ciclo) mapa.set(g.ciclo.id, g.ciclo.nombre)
+  return [...mapa].map(([id, nombre]) => ({ id, nombre }))
+})
+
+const gruposAsignar = computed(() => {
+  const delCiclo = gruposBase.value.filter((g) => g.ciclo_id === asignar.cicloId)
+  const items = delCiclo.map((g) => ({
+    id: g.id,
+    titulo: `${g.nombre}${g.materia ? ' · ' + g.materia.nombre : ''}`,
+    subtitulo: g.docente ? `Actual: ${g.docente.nombres} ${g.docente.apellidos}` : 'Sin docente',
+  }))
+  if (modoAsignar.value === 'quitar' && items.length > 0) {
+    items.unshift({
+      id: 0,
+      titulo: 'Todos los grupos del ciclo',
+      subtitulo: `${items.length} grupo(s) se quitarán`,
+    })
+  }
+  return items
+})
+
+watch(modoAsignar, () => {
+  Object.assign(asignar, { docenteId: null, cicloId: null, grupoId: null })
+  errorAsignar.value = ''
+  asignarFormRef.value?.resetValidation()
+})
+watch(
+  () => asignar.docenteId,
+  () => {
+    asignar.cicloId = null
+    asignar.grupoId = null
+  },
+)
+watch(
+  () => asignar.cicloId,
+  () => {
+    asignar.grupoId = null
+  },
+)
+
+async function abrirAsignar(): Promise<void> {
+  errorAsignar.value = ''
+  modoAsignar.value = 'asignar'
+  Object.assign(asignar, { docenteId: null, cicloId: null, grupoId: null })
+  dialogAsignar.value = true
+  asignarFormRef.value?.resetValidation()
+  try {
+    const [d, g] = await Promise.all([
+      api.get<Paginated<DocenteRow>>('/docentes', { params: { per_page: 200 } }),
+      api.get<Paginated<GrupoAsignable>>('/grupos', { params: { per_page: 200 } }),
+    ])
+    todosDocentes.value = d.data.data
+    todosGrupos.value = g.data.data
+  } catch (e) {
+    errorAsignar.value = errorMsg(e)
+  }
+}
+
+async function guardarAsignacion(): Promise<void> {
+  errorAsignar.value = ''
+  const r = await asignarFormRef.value?.validate()
+  if (!r?.valid) return
+  const doc = todosDocentes.value.find((d) => d.id === asignar.docenteId)
+  asignando.value = true
+  try {
+    if (modoAsignar.value === 'quitar') {
+      const { data } = await api.post<{ quitados: number }>(`/docentes/${asignar.docenteId}/quitar-grupos`, {
+        ciclo_id: asignar.cicloId,
+        grupo_id: asignar.grupoId || null,
+      })
+      avisar(`Se quitaron ${data.quitados} grupo(s) a ${doc?.nombres} ${doc?.apellidos}`, 'success')
+    } else {
+      const grupo = todosGrupos.value.find((g) => g.id === asignar.grupoId)
+      if (!grupo) return
+      await api.put(`/grupos/${grupo.id}`, {
+        nombre: grupo.nombre,
+        ciclo_id: grupo.ciclo_id,
+        materia_id: grupo.materia_id,
+        docente_id: asignar.docenteId,
+      })
+      avisar(`Grupo "${grupo.nombre}" asignado a ${doc?.nombres} ${doc?.apellidos}`, 'success')
+    }
+    dialogAsignar.value = false
+  } catch (e) {
+    errorAsignar.value = errorMsg(e)
+  } finally {
+    asignando.value = false
+  }
+}
+
 // ---- notificaciones ----
 const snack = reactive({ show: false, texto: '', color: 'success' })
 function avisar(texto: string, color: 'success' | 'error' | 'warning'): void {
@@ -215,7 +346,7 @@ onMounted(cargar)
       </v-col>
       <v-col cols="12" sm="3" class="d-flex ga-2 justify-end">
         <v-btn color="secondary" @click="filtrar">Filtrar</v-btn>
-        <v-btn color="grey" @click="limpiar">Limpiar</v-btn>
+        <v-btn color="secondary" variant="outlined" prepend-icon="mdi-account-switch" @click="abrirAsignar">Asignar</v-btn>
       </v-col>
     </v-row>
 
@@ -266,8 +397,11 @@ onMounted(cargar)
     </v-table>
 
     <!-- Paginación -->
-    <div class="d-flex align-center justify-space-between flex-wrap mt-4">
-      <span class="sub2 text-medium-emphasis">{{ total }} registro(s) · {{ PER_PAGE }} por página</span>
+    <div class="d-flex align-center justify-end flex-wrap ga-4 mt-4">
+      <div class="d-flex align-center ga-4">
+        <span class="sub2 text-medium-emphasis">{{ total }} registro(s) · {{ PER_PAGE }} por página</span>
+        <v-btn color="grey" size="small" prepend-icon="mdi-filter-remove" @click="limpiar">Limpiar</v-btn>
+      </div>
       <v-pagination
         v-model="page" :length="lastPage" :total-visible="5"
         density="comfortable" color="secondary" rounded="circle"
@@ -309,6 +443,56 @@ onMounted(cargar)
       <v-card-actions class="bg-secondary justify-center pa-3">
         <v-btn v-if="modo !== 'ver'" variant="outlined" color="white" :loading="guardando" @click="guardar">Guardar</v-btn>
         <v-btn variant="outlined" color="white" @click="dialog = false">{{ modo === 'ver' ? 'Cerrar' : 'Cancelar' }}</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Asignar / quitar grupos a docente -->
+  <v-dialog v-model="dialogAsignar" max-width="520" persistent>
+    <v-card rounded="lg">
+      <v-toolbar
+        color="secondary" density="compact"
+        :title="modoAsignar === 'asignar' ? 'Asignar grupo a docente' : 'Quitar grupos a docente'"
+      />
+      <v-card-text class="pa-6">
+        <v-btn-toggle v-model="modoAsignar" mandatory divided color="secondary" density="comfortable" class="mb-4">
+          <v-btn value="asignar" prepend-icon="mdi-account-plus">Asignar</v-btn>
+          <v-btn value="quitar" prepend-icon="mdi-account-minus">Quitar</v-btn>
+        </v-btn-toggle>
+
+        <v-form ref="asignarFormRef" @submit.prevent="guardarAsignacion">
+          <v-select
+            v-model="asignar.docenteId" :items="docentesAsignar" item-value="id"
+            :item-title="(d: DocenteRow) => `${d.nombres} ${d.apellidos}`"
+            label="Docente" :rules="[(v: number | null) => !!v || 'Selecciona un docente']"
+          />
+          <v-select
+            v-model="asignar.cicloId" :items="ciclosAsignar" item-title="nombre" item-value="id"
+            label="Ciclo" :disabled="!asignar.docenteId"
+            :no-data-text="modoAsignar === 'quitar' ? 'Este docente no tiene grupos asignados' : 'Sin ciclos'"
+            :rules="[(v: number | null) => !!v || 'Selecciona un ciclo']"
+          />
+          <v-select
+            v-model="asignar.grupoId" :items="gruposAsignar" item-value="id" item-title="titulo"
+            :item-props="(g: { titulo: string; subtitulo: string }) => ({ title: g.titulo, subtitle: g.subtitulo })"
+            label="Grupo" :disabled="!asignar.cicloId"
+            :rules="[(v: number | null) => v !== null || 'Selecciona un grupo']"
+          />
+          <p class="sub2 text-medium-emphasis">
+            {{
+              modoAsignar === 'asignar'
+                ? 'Todos los estudiantes y notas del grupo pasarán al docente seleccionado.'
+                : 'Los grupos quedarán sin docente. Los estudiantes y sus notas no se borran; podrás asignarlos a otro docente después.'
+            }}
+          </p>
+          <v-alert v-if="errorAsignar" type="error" variant="tonal" density="compact" class="mt-2">{{ errorAsignar }}</v-alert>
+        </v-form>
+      </v-card-text>
+      <v-card-actions class="bg-secondary justify-center pa-3">
+        <v-btn variant="outlined" color="white" :loading="asignando" @click="guardarAsignacion">
+          {{ modoAsignar === 'asignar' ? 'Guardar' : 'Quitar' }}
+        </v-btn>
+        <v-btn variant="outlined" color="white" @click="dialogAsignar = false">Cancelar</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
